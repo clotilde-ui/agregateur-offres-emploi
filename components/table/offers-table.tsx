@@ -100,6 +100,26 @@ export function OffersTable({ customFields: initialCustomFields }: OffersTablePr
     );
   }
 
+  async function updateOfferUrl(offerId: string, value: string) {
+    const res = await fetch(`/api/job-offers/${offerId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: value }),
+    });
+
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      alert(json.error ?? "Impossible d'enregistrer l'URL.");
+      return false;
+    }
+
+    const updated = await res.json();
+    setOffers((prev) =>
+      prev.map((o) => (o.id === offerId ? { ...o, url: updated.url } : o))
+    );
+    return true;
+  }
+
   async function deleteCustomField(fieldId: string) {
     if (!confirm("Supprimer ce champ ? Les données associées seront perdues.")) return;
     const res = await fetch(`/api/custom-fields/${fieldId}`, { method: "DELETE" });
@@ -239,17 +259,12 @@ export function OffersTable({ customFields: initialCustomFields }: OffersTablePr
                       <div className="font-medium text-gray-900 truncate">
                         {offer.title}
                       </div>
-                      {offer.url && (
-                        <a
-                          href={offer.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-xs text-blue-500 hover:underline"
-                        >
-                          Voir l'offre
-                        </a>
-                      )}
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <OfferUrlCell
+                          url={offer.url}
+                          onSave={(value) => updateOfferUrl(offer.id, value)}
+                        />
+                      </div>
                     </td>
 
                     {/* Entreprise */}
@@ -441,6 +456,84 @@ export function OffersTable({ customFields: initialCustomFields }: OffersTablePr
           }}
         />
       )}
+    </div>
+  );
+}
+
+function OfferUrlCell({
+  url,
+  onSave,
+}: {
+  url: string | null;
+  onSave: (value: string) => Promise<boolean>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(url ?? "");
+  const [saving, setSaving] = useState(false);
+
+  function startEditing() {
+    setValue(url ?? "");
+    setEditing(true);
+  }
+
+  async function save() {
+    if (saving) return;
+    if (value.trim() === (url ?? "")) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    const ok = await onSave(value.trim());
+    setSaving(false);
+    if (ok) setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <input
+        type="url"
+        autoFocus
+        value={value}
+        disabled={saving}
+        placeholder="https://..."
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            e.currentTarget.blur();
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            setEditing(false);
+          }
+        }}
+        className="mt-1 w-full border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+      />
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      {url ? (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-blue-500 hover:underline"
+        >
+          Voir l&apos;offre
+        </a>
+      ) : (
+        <span className="text-xs text-gray-400">Pas d&apos;URL</span>
+      )}
+      <button
+        type="button"
+        onClick={startEditing}
+        title={url ? "Modifier l'URL de l'offre" : "Ajouter l'URL de l'offre"}
+        className="text-xs text-gray-300 hover:text-blue-600"
+      >
+        ✎
+      </button>
     </div>
   );
 }
